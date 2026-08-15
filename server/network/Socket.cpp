@@ -85,22 +85,32 @@ bool Socket::receive() {
 
     switch (packet.type) {
 
-    case PacketType::JOIN:
+    case PacketType::JOIN:{
         std::cout << "Packet : JOIN\n";
-        break;
+        std::string ip = inet_ntoa(clientAddress.sin_addr);
+         int port = ntohs(clientAddress.sin_port);
 
-    case PacketType::MOVE_UP:
+         int playerId = sessionManager.createSession(ip, port);
+
+         std::cout << "Player joined: " << playerId
+              << " from " << ip << ":" << port << "\n";
+        
+        break;
+    }
+    case PacketType::MOVE_UP:{
         std::cout << "Packet : MOVE_UP\n";
         break;
+    }
 
-    case PacketType::MOVE_DOWN:
+    case PacketType::MOVE_DOWN:{
         std::cout << "Packet : MOVE_DOWN\n";
         break;
+    }
 
-    case PacketType::PING:
+    case PacketType::PING:{
         std::cout << "Packet : PING\n";
         break;
-
+    }
     default:
         std::cout << "Packet : UNKNOWN\n";
 }

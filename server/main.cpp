@@ -16,7 +16,9 @@ int main() {
 
     std::cout << "Waiting for packet...\n";
 
+    while(true){
     socket.receive();
+    }
 
     return 0;
 }

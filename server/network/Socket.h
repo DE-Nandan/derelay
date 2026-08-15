@@ -1,4 +1,5 @@
 #pragma once
+#include "SessionManager.h"
 
 class Socket {
 
@@ -9,4 +10,5 @@ public:
     
 private:
     int fd = -1;
+    SessionManager sessionManager;
 };
