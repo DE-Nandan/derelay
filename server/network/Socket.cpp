@@ -83,13 +83,14 @@ bool Socket::receive() {
 
     // cout << "Data : " << message << "\n";
 
+    std::string ip = inet_ntoa(clientAddress.sin_addr);
+    int port = ntohs(clientAddress.sin_port);
+
     switch (packet.type) {
 
     case PacketType::JOIN:{
         std::cout << "Packet : JOIN\n";
-        std::string ip = inet_ntoa(clientAddress.sin_addr);
-         int port = ntohs(clientAddress.sin_port);
-
+        
          int playerId = sessionManager.createSession(ip, port);
 
          std::cout << "Player joined: " << playerId
@@ -99,6 +100,8 @@ bool Socket::receive() {
     }
     case PacketType::MOVE_UP:{
         std::cout << "Packet : MOVE_UP\n";
+        int playerId = sessionManager.getPlayerId(ip,port);
+        std::cout<<playerId<<" "<<" will move up";
         break;
     }
 
