@@ -6,22 +6,27 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <arpa/inet.h>
+
+#include "../../protocol/Packet.h"
+
+using namespace std;
 
 bool Socket::create() {
     fd = socket(AF_INET, SOCK_DGRAM, 0);
 
     if (fd < 0) {
-        std::cout << "Failed to create socket\n";
+        cout << "Failed to create socket\n";
         return false;
     }
 
-    std::cout << "UDP Socket created. FD = " << fd << std::endl;
+    cout << "UDP Socket created. FD = " << fd << std::endl;
     return true;
 }
 
 bool Socket::bind(unsigned short port) {
     if (fd < 0) {
-        std::cout << "Socket not created\n";
+        cout << "Socket not created\n";
         return false;
     }
 
@@ -34,11 +39,11 @@ bool Socket::bind(unsigned short port) {
     if (::bind(fd,
                reinterpret_cast<sockaddr*>(&address),
                sizeof(address)) < 0) {
-        std::cerr << "Bind failed: " << std::strerror(errno) << std::endl;
+        cerr << "Bind failed: " << std::strerror(errno) << std::endl;
         return false;
     }
 
-    std::cout << "Listening on port " << port << std::endl;
+    cout << "Listening on port " << port << std::endl;
     return true;
 }
 
@@ -59,11 +64,51 @@ bool Socket::receive() {
             &clientLength);
 
     if (bytesReceived < 0) {
-        std::cout << "Receive failed\n";
+        cout << "Receive failed\n";
         return false;
     }
 
-    std::cout << "Received " << bytesReceived << " bytes\n";
+    cout << "Received " << bytesReceived << " bytes\n";
+
+   string message(buffer, bytesReceived);
+
+   Packet packet = parsePacket(message);
+
+   cout << "Received packet\n";
+   cout << "From : "
+              << inet_ntoa(clientAddress.sin_addr)
+              << ":"
+              << ntohs(clientAddress.sin_port)
+              << "\n";
+
+    // cout << "Data : " << message << "\n";
+
+    switch (packet.type) {
+
+    case PacketType::JOIN:
+        std::cout << "Packet : JOIN\n";
+        break;
+
+    case PacketType::MOVE_UP:
+        std::cout << "Packet : MOVE_UP\n";
+        break;
+
+    case PacketType::MOVE_DOWN:
+        std::cout << "Packet : MOVE_DOWN\n";
+        break;
+
+    case PacketType::PING:
+        std::cout << "Packet : PING\n";
+        break;
+
+    default:
+        std::cout << "Packet : UNKNOWN\n";
+}
+
+
+    cout << "Bytes: " << bytesReceived << "\n";
+
+
 
     return true;
 }
