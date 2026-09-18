@@ -1,0 +1,16 @@
+CMakeFiles/
+build/
+*.o
+*.a
+*.so
+*.out
+*.dSYM/
+.git/
+.gitignore
+.vscode/
+*.cmake
+CMakeCache.txt
+Makefile
+*.md
+.dockerignore
+docker-compose.yml

@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <string>
 
 #include "../../protocol/Packet.h"
 
@@ -47,6 +48,10 @@ bool Socket::bind(unsigned short port) {
     return true;
 }
 
+bool Socket::connectToGameServer() {
+    return gameServer.connectToServer("/tmp/derelay.sock");
+}
+
 
 bool Socket::receive() {
 
@@ -65,10 +70,12 @@ bool Socket::receive() {
 
     if (bytesReceived < 0) {
         cout << "Receive failed\n";
+        cout.flush();
         return false;
     }
 
     cout << "Received " << bytesReceived << " bytes\n";
+    cout.flush();
 
    string message(buffer, bytesReceived);
 
@@ -80,6 +87,7 @@ bool Socket::receive() {
               << ":"
               << ntohs(clientAddress.sin_port)
               << "\n";
+   cout.flush();
 
     // cout << "Data : " << message << "\n";
 
@@ -101,12 +109,23 @@ bool Socket::receive() {
     case PacketType::MOVE_UP:{
         std::cout << "Packet : MOVE_UP\n";
         int playerId = sessionManager.getPlayerId(ip,port);
+        if (playerId == -1) {
+        cout << "Unknown player\n";
+            break;
+        }
         std::cout<<playerId<<" "<<" will move up";
+
+        gameServer.sendMessage(
+            std::to_string(playerId) + "|MOVE_UP"
+        );
+
         break;
     }
 
     case PacketType::MOVE_DOWN:{
         std::cout << "Packet : MOVE_DOWN\n";
+        int playerId = sessionManager.getPlayerId(ip,port);
+        std::cout<<playerId<<" "<<" will move down";
         break;
     }
 

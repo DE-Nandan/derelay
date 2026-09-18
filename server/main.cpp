@@ -14,10 +14,18 @@ int main() {
     if (!socket.bind(5000))
         return 1;
 
-    std::cout << "Waiting for packet...\n";
+    if (!socket.connectToGameServer())
+    return 1;    
 
+    std::cout << "Waiting for packet...\n";
+    std::cout.flush();
+
+    int count = 0;
     while(true){
-    socket.receive();
+        count++;
+        std::cout << "Waiting... iteration " << count << "\n";
+        std::cout.flush();
+        socket.receive();
     }
 
     return 0;

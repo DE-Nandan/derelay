@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  derelay-server:
+    build: .
+    container_name: derelay-server
+    network_mode: host
+    ports:
+      - "5000:5000/udp"
+    environment:
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    networks:
+      - derelay-network
+
+networks:
+  derelay-network:
+    driver: bridge
