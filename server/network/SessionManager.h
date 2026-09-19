@@ -6,8 +6,8 @@
 class SessionManager {
 private:
     std::unordered_map<int, Session> sessions;
-    int nextPlayerId = 1;
-    std::unordered_map<std::string,int> playerLookup;
+    int nextSessionId = 1;
+    std::unordered_map<std::string,int> sessionLookup;
 
 public:
     int createSession(const std::string& ip, int port);

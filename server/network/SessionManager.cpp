@@ -2,24 +2,24 @@
 
 int SessionManager::createSession(const std::string& ip, int port) {
 
-    int playerId = nextPlayerId++;
+    int sessionId = nextSessionId++;
 
-    sessions[playerId] = {
-        playerId,
+    sessions[sessionId] = {
+        sessionId,
         ip,
         port
     };
 
-    playerLookup[ip+":"+std::to_string(port)] = playerId;
+    sessionLookup[ip+":"+std::to_string(port)] = sessionId;
 
-    return playerId;
+    return sessionId;
 }
 
 int SessionManager::getPlayerId(const std::string& ip, int port) {
 
-    auto it = playerLookup.find(ip+":"+std::to_string(port));
+    auto it = sessionLookup.find(ip+":"+std::to_string(port));
 
-    if(it == playerLookup.end())
+    if(it == sessionLookup.end())
     return -1;
 
     return it->second;

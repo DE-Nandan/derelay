@@ -96,36 +96,97 @@ bool Socket::receive() {
 
     switch (packet.type) {
 
-    case PacketType::JOIN:{
+    case PacketType::JOIN: {
         std::cout << "Packet : JOIN\n";
         
-         int playerId = sessionManager.createSession(ip, port);
+        int sessionId = sessionManager.createSession(ip, port);
 
-         std::cout << "Player joined: " << playerId
-              << " from " << ip << ":" << port << "\n";
-        
+        std::cout << "Session created: " << sessionId
+                << " from " << ip << ":" << port << "\n";
+
+        gameServer.sendMessage(
+            std::to_string(sessionId) + "|JOIN"
+        );
+
+        std::string response;
+
+        if (gameServer.receiveMessage(response)) {
+
+            std::cout << "GameServer response: "
+                    << response << "\n";
+
+            sendto(
+                fd,
+                response.c_str(),
+                response.size(),
+                0,
+                reinterpret_cast<sockaddr*>(&clientAddress),
+                clientLength
+            );
+        }
+
         break;
     }
     case PacketType::MOVE_UP:{
         std::cout << "Packet : MOVE_UP\n";
-        int playerId = sessionManager.getPlayerId(ip,port);
-        if (playerId == -1) {
-        cout << "Unknown player\n";
+        int sessionId = sessionManager.getPlayerId(ip,port);
+        if (sessionId == -1) {
+        cout << "Unknown session\n";
             break;
         }
-        std::cout<<playerId<<" "<<" will move up";
+        std::cout<<sessionId<<" "<<" will move up";
 
         gameServer.sendMessage(
-            std::to_string(playerId) + "|MOVE_UP"
+            std::to_string(sessionId) + "|MOVE_UP"
         );
+
+        std::string response;
+
+
+        if (gameServer.receiveMessage(response)) {
+
+            std::cout << "GameServer response: "
+                    << response << "\n";
+
+            sendto(
+                fd,
+                response.c_str(),
+                response.size(),
+                0,
+                reinterpret_cast<sockaddr*>(&clientAddress),
+                clientLength
+            );
+        }
 
         break;
     }
 
     case PacketType::MOVE_DOWN:{
         std::cout << "Packet : MOVE_DOWN\n";
-        int playerId = sessionManager.getPlayerId(ip,port);
-        std::cout<<playerId<<" "<<" will move down";
+        int sessionId = sessionManager.getPlayerId(ip,port);
+        if (sessionId == -1) {
+        cout << "Unknown session\n";
+            break;
+        }
+        std::cout<<sessionId<<" "<<" will move down";
+
+        gameServer.sendMessage(
+            std::to_string(sessionId) + "|MOVE_DOWN"
+        );
+
+        std::string response;
+        if (gameServer.receiveMessage(response)) {
+            sendto(
+                fd,
+                response.c_str(),
+                response.size(),
+                0,
+                reinterpret_cast<sockaddr*>(&clientAddress),
+                clientLength
+            );
+        }
+
+
         break;
     }
 

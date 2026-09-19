@@ -55,3 +55,18 @@ bool UnixSocketClient::sendMessage(const std::string& message) {
 
     return bytesSent == static_cast<ssize_t>(message.size());
 }
+
+bool UnixSocketClient::receiveMessage(std::string& message) {
+
+    char buffer[1024];
+
+    ssize_t bytesRead = recv(fd, buffer, sizeof(buffer), 0);
+
+    if (bytesRead <= 0) {
+        return false;
+    }
+
+    message.assign(buffer, bytesRead);
+
+    return true;
+}
