@@ -21,12 +21,8 @@ int main() {
     std::cout.flush();
 
     int count = 0;
-    while(true){
-        count++;
-        std::cout << "Waiting... iteration " << count << "\n";
-        std::cout.flush();
-        socket.receive();
-    }
+    
+    socket.runEventLoop();
 
     return 0;
 }

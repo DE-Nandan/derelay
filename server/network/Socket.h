@@ -7,8 +7,10 @@ class Socket {
 public:
     bool create();
     bool bind(unsigned short port);
-    bool receive();
+    void receiveUdpPacket();
+    bool receiveGameServerMessage();
     bool connectToGameServer();
+    void runEventLoop();
     
 private:
     int fd = -1;

@@ -24,3 +24,17 @@ int SessionManager::getPlayerId(const std::string& ip, int port) {
 
     return it->second;
 }
+
+Session SessionManager::getSession(int sessionId) {
+
+    auto it = sessions.find(sessionId);
+
+    if (it == sessions.end()) {
+        return Session{};
+    }
+
+    return it->second;
+}
+
+
+

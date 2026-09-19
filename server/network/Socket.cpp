@@ -8,6 +8,9 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <string>
+#include <sys/event.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #include "../../protocol/Packet.h"
 
@@ -53,7 +56,7 @@ bool Socket::connectToGameServer() {
 }
 
 
-bool Socket::receive() {
+void Socket::receiveUdpPacket() {
 
     char buffer[1024];
 
@@ -71,7 +74,7 @@ bool Socket::receive() {
     if (bytesReceived < 0) {
         cout << "Receive failed\n";
         cout.flush();
-        return false;
+        return;
     }
 
     cout << "Received " << bytesReceived << " bytes\n";
@@ -108,23 +111,6 @@ bool Socket::receive() {
             std::to_string(sessionId) + "|JOIN"
         );
 
-        std::string response;
-
-        if (gameServer.receiveMessage(response)) {
-
-            std::cout << "GameServer response: "
-                    << response << "\n";
-
-            sendto(
-                fd,
-                response.c_str(),
-                response.size(),
-                0,
-                reinterpret_cast<sockaddr*>(&clientAddress),
-                clientLength
-            );
-        }
-
         break;
     }
     case PacketType::MOVE_UP:{
@@ -139,24 +125,6 @@ bool Socket::receive() {
         gameServer.sendMessage(
             std::to_string(sessionId) + "|MOVE_UP"
         );
-
-        std::string response;
-
-
-        if (gameServer.receiveMessage(response)) {
-
-            std::cout << "GameServer response: "
-                    << response << "\n";
-
-            sendto(
-                fd,
-                response.c_str(),
-                response.size(),
-                0,
-                reinterpret_cast<sockaddr*>(&clientAddress),
-                clientLength
-            );
-        }
 
         break;
     }
@@ -174,18 +142,6 @@ bool Socket::receive() {
             std::to_string(sessionId) + "|MOVE_DOWN"
         );
 
-        std::string response;
-        if (gameServer.receiveMessage(response)) {
-            sendto(
-                fd,
-                response.c_str(),
-                response.size(),
-                0,
-                reinterpret_cast<sockaddr*>(&clientAddress),
-                clientLength
-            );
-        }
-
 
         break;
     }
@@ -198,10 +154,337 @@ bool Socket::receive() {
         std::cout << "Packet : UNKNOWN\n";
 }
 
-
     cout << "Bytes: " << bytesReceived << "\n";
 
 
-
-    return true;
 }
+
+
+bool Socket::receiveGameServerMessage() {
+
+    string response;
+
+    if (!gameServer.receiveMessage(response)) {
+
+        cout << "GameServer connection closed\n";
+        return false;
+    }
+
+    cout << "GameServer response: "
+         << response
+         << "\n";
+
+
+    size_t firstSeparator =
+        response.find('|');
+
+    if (firstSeparator == string::npos) {
+
+        cout << "Invalid GameServer response\n";
+        return false;
+    }
+
+    int sessionId =
+        stoi(response.substr(0, firstSeparator));
+
+
+
+    Session session =
+        sessionManager.getSession(sessionId);
+
+
+    sockaddr_in clientAddress{};
+
+    clientAddress.sin_family = AF_INET;
+    clientAddress.sin_port = htons(session.port);
+
+    inet_pton(
+        AF_INET,
+        session.ip.c_str(),
+        &clientAddress.sin_addr
+    );
+
+
+
+    sendto(
+        fd,
+        response.c_str(),
+        response.size(),
+        0,
+        reinterpret_cast<sockaddr*>(&clientAddress),
+        sizeof(clientAddress)
+    );
+
+    cout << "Forwarded state to Session "
+         << sessionId
+         << "\n";
+
+    return true;     
+}
+
+void Socket::runEventLoop() {
+
+    int kqueueFd = kqueue();
+
+    if (kqueueFd < 0) {
+
+        cerr << "Failed to create kqueue: "
+             << strerror(errno)
+             << "\n";
+
+        return;
+    }
+
+    int gameServerFd = gameServer.getFd();
+
+    struct kevent changeList[2];
+
+    // Watch UDP socket
+    EV_SET(
+        &changeList[0],
+        fd,
+        EVFILT_READ,
+        EV_ADD,
+        0,
+        0,
+        nullptr
+    );
+
+    // Watch GameServer Unix socket
+    EV_SET(
+        &changeList[1],
+        gameServerFd,
+        EVFILT_READ,
+        EV_ADD,
+        0,
+        0,
+        nullptr
+    );
+
+    if (kevent(
+            kqueueFd,
+            changeList,
+            2,
+            nullptr,
+            0,
+            nullptr
+        ) < 0) {
+
+        cerr << "Failed to register sockets with kqueue: "
+             << strerror(errno)
+             << "\n";
+
+        close(kqueueFd);
+        return;
+    }
+
+    cout << "DeRelay event loop started\n";
+
+    struct kevent events[10];
+
+    while (true) {
+
+        int readyCount = kevent(
+            kqueueFd,
+            nullptr,
+            0,
+            events,
+            10,
+            nullptr
+        );
+
+        if (readyCount < 0) {
+
+            if (errno == EINTR)
+                continue;
+
+            cerr << "kevent failed: "
+                 << strerror(errno)
+                 << "\n";
+
+            break;
+        }
+
+        for (int i = 0; i < readyCount; i++) {
+
+            int readyFd =
+                static_cast<int>(events[i].ident);
+
+            if (readyFd == fd) {
+
+                receiveUdpPacket();
+            }
+
+            else if (readyFd == gameServerFd) {
+
+                 bool success = receiveGameServerMessage();
+
+                if (!success) {
+
+                    struct kevent change{};
+
+                    EV_SET(
+                        &change,
+                        gameServerFd,
+                        EVFILT_READ,
+                        EV_DELETE,
+                        0,
+                        0,
+                        nullptr
+                    );
+
+                    kevent(
+                        kqueueFd,
+                        &change,
+                        1,
+                        nullptr,
+                        0,
+                        nullptr
+                    );
+
+                    cout << "GameServer socket removed from kqueue\n";
+                }
+            }
+        }
+    }
+
+    close(kqueueFd);
+}
+
+
+
+
+// void Socket::runEventLoop() {
+
+//     int epollFd = epoll_create1(0);
+
+//     if (epollFd < 0) {
+
+//         cerr << "Failed to create epoll: "
+//              << strerror(errno)
+//              << "\n";
+
+//         return;
+//     }
+
+
+//     /*
+//      * Add UDP socket.
+//      */
+
+//     epoll_event udpEvent{};
+
+//     udpEvent.events = EPOLLIN;
+//     udpEvent.data.fd = fd;
+
+//     if (epoll_ctl(
+//             epollFd,
+//             EPOLL_CTL_ADD,
+//             fd,
+//             &udpEvent) < 0) {
+
+//         cerr << "Failed to add UDP socket to epoll: "
+//              << strerror(errno)
+//              << "\n";
+
+//         close(epollFd);
+//         return;
+//     }
+
+
+//     /*
+//      * Add Unix socket connected to Java.
+//      */
+
+//     int gameServerFd =
+//         gameServer.getFd();
+
+//     epoll_event gameServerEvent{};
+
+//     gameServerEvent.events = EPOLLIN;
+//     gameServerEvent.data.fd = gameServerFd;
+
+//     if (epoll_ctl(
+//             epollFd,
+//             EPOLL_CTL_ADD,
+//             gameServerFd,
+//             &gameServerEvent) < 0) {
+
+//         cerr << "Failed to add GameServer socket to epoll: "
+//              << strerror(errno)
+//              << "\n";
+
+//         close(epollFd);
+//         return;
+//     }
+
+
+//     cout << "DeRelay event loop started\n";
+
+
+//     epoll_event events[10];
+
+
+//     while (true) {
+
+//         int readyCount =
+//             epoll_wait(
+//                 epollFd,
+//                 events,
+//                 10,
+//                 -1
+//             );
+
+
+//         if (readyCount < 0) {
+
+//             if (errno == EINTR)
+//                 continue;
+
+//             cerr << "epoll_wait failed: "
+//                  << strerror(errno)
+//                  << "\n";
+
+//             break;
+//         }
+
+
+//         /*
+//          * Process everything that became ready.
+//          */
+
+//         for (int i = 0; i < readyCount; i++) {
+
+//             int readyFd =
+//                 events[i].data.fd;
+
+
+//             /*
+//              * UDP packet available.
+//              */
+
+//             if (readyFd == fd) {
+
+//                 receiveUdpPacket();
+//             }
+
+
+//             /*
+//              * Java/GameServer response available.
+//              */
+
+//             else if (readyFd == gameServerFd) {
+
+//                 receiveGameServerMessage();
+//             }
+//         }
+//     }
+
+
+//     close(epollFd);
+// }
+
+
+
+
+
