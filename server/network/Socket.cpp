@@ -174,24 +174,67 @@ bool Socket::receiveGameServerMessage() {
          << response
          << "\n";
 
-
+    
     size_t firstSeparator =
         response.find('|');
 
     if (firstSeparator == string::npos) {
 
         cout << "Invalid GameServer response\n";
-        return false;
+        return true;
     }
 
     int sessionId =
         stoi(response.substr(0, firstSeparator));
 
-
-
+    
     Session session =
         sessionManager.getSession(sessionId);
 
+   
+    string stateMessage =
+        response.substr(firstSeparator + 1);
+
+    size_t secondSeparator =
+        stateMessage.find('|');
+
+    if (secondSeparator == string::npos) {
+
+        cout << "Invalid STATE response\n";
+        return true;
+    }
+
+    string stateType =
+        stateMessage.substr(0, secondSeparator);
+
+    if (stateType != "STATE") {
+
+        cout << "Unknown GameServer response\n";
+        return true;
+    }
+
+    
+    string remaining =
+        stateMessage.substr(secondSeparator + 1);
+
+    size_t thirdSeparator =
+        remaining.find('|');
+
+    if (thirdSeparator == string::npos) {
+
+        cout << "Invalid STATE response\n";
+        return true;
+    }
+
+    string playerId =
+        remaining.substr(0, thirdSeparator);
+
+    string y =
+        remaining.substr(thirdSeparator + 1);
+
+    
+    string clientResponse =
+        playerId + "|STATE|" + y;
 
     sockaddr_in clientAddress{};
 
@@ -204,22 +247,22 @@ bool Socket::receiveGameServerMessage() {
         &clientAddress.sin_addr
     );
 
-
-
     sendto(
         fd,
-        response.c_str(),
-        response.size(),
+        clientResponse.c_str(),
+        clientResponse.size(),
         0,
         reinterpret_cast<sockaddr*>(&clientAddress),
         sizeof(clientAddress)
     );
 
-    cout << "Forwarded state to Session "
+    cout << "Forwarded Player "
+         << playerId
+         << " state to Session "
          << sessionId
          << "\n";
 
-    return true;     
+    return true;
 }
 
 void Socket::runEventLoop() {
