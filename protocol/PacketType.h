@@ -5,5 +5,6 @@ enum class PacketType {
     MOVE_UP,
     MOVE_DOWN,
     PING,
+    STATE,
     UNKNOWN
 };

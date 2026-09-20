@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include "../../protocol/Packet.h"
+#include "../../protocol/DeliveryPolicy.h"
 
 using namespace std;
 
@@ -82,7 +83,7 @@ void Socket::receiveUdpPacket() {
 
    string message(buffer, bytesReceived);
 
-   Packet packet = parsePacket(message);
+   Packet packet = deserializePacket(message);
 
    cout << "Received packet\n";
    cout << "From : "
@@ -242,8 +243,24 @@ bool Socket::receiveGameServerMessage() {
         remaining.substr(thirdSeparator + 1);
 
 
+    Packet packet;
+
+    packet.type = PacketType::STATE;
+    packet.payload = playerId + "|STATE|" + y;
+
+    packet.deliveryType =
+        getDeliveryType(packet.type);
+
+    packet.sequenceNumber = 0;
+
+    if (packet.deliveryType == DeliveryType::RELIABLE) {
+
+        packet.sequenceNumber =
+            sessionManager.getNextSequenceNumber(sessionId);
+    }
+
     string clientResponse =
-        playerId + "|STATE|" + y;
+        serializePacket(packet);
 
     sockaddr_in clientAddress{};
 

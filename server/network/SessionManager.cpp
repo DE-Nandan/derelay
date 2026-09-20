@@ -36,5 +36,16 @@ Session SessionManager::getSession(int sessionId) {
     return it->second;
 }
 
+uint32_t SessionManager::getNextSequenceNumber(int sessionId) {
+
+    auto it = sessions.find(sessionId);
+
+    if (it == sessions.end()) {
+        return 0;
+    }
+
+    return it->second.nextSequenceNumber++;
+}
+
 
 

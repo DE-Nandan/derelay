@@ -13,4 +13,5 @@ public:
     int createSession(const std::string& ip, int port);
     int getPlayerId(const std::string &ip,int port);
     Session getSession(int sessionId);
+    uint32_t getNextSequenceNumber(int sessionId);
 };
