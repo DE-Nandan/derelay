@@ -47,18 +47,18 @@ std::string serializePacket(const Packet& packet) {
 
     std::string data;
 
-    // Convert internal DeliveryType to wire flag.
+   
     uint8_t flags =
         packet.deliveryType == DeliveryType::RELIABLE
         ? 1
         : 0;
 
-    // 1 byte flags
+   
     data.push_back(
         static_cast<char>(flags)
     );
 
-    // 4 byte sequence number
+   
     uint32_t sequence =
         packet.sequenceNumber;
 
@@ -71,7 +71,7 @@ std::string serializePacket(const Packet& packet) {
         );
     }
 
-    // Application payload
+   
     data += packet.payload;
 
     return data;
@@ -90,7 +90,7 @@ Packet deserializePacket(const std::string& data) {
         };
     }
 
-    // Read wire flag
+   
     uint8_t flags =
         static_cast<uint8_t>(data[0]);
 
@@ -99,7 +99,7 @@ Packet deserializePacket(const std::string& data) {
         ? DeliveryType::RELIABLE
         : DeliveryType::UNRELIABLE;
 
-    // Read sequence number
+   
     uint32_t sequence = 0;
 
     for (int i = 0; i < 4; i++) {
@@ -109,8 +109,7 @@ Packet deserializePacket(const std::string& data) {
                 static_cast<unsigned char>(data[i + 1])
             ) << (i * 8);
     }
-
-    // Remaining bytes = application payload
+    
     std::string payload =
         data.substr(5);
 

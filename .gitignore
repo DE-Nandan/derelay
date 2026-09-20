@@ -8,7 +8,8 @@
 *.o
 *.a
 *.so
-client/derelay_client
+client/derelay_client*
+tests/test_suite
 # Local IDE and OS files
 .idea/workspace.xml
 .DS_Store
