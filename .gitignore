@@ -1,2 +1,18 @@
-# Ignore Markdown files
+# Keep the repository README tracked, while keeping supporting notes local for now.
 *.md
+!README.md
+
+# Build outputs and debug symbols
+*.out
+*.dSYM/
+*.o
+*.a
+*.so
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Local IDE and OS files
+.idea/workspace.xml
+.DS_Store
