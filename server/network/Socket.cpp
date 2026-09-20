@@ -164,17 +164,26 @@ bool Socket::receiveGameServerMessage() {
 
     string response;
 
-    if (!gameServer.receiveMessage(response)) {
+    ReceiveResult result =
+        gameServer.receiveMessage(response);
+
+    if (result == ReceiveResult::CLOSED) {
 
         cout << "GameServer connection closed\n";
         return false;
     }
 
+    if (result == ReceiveResult::NO_DATA) {
+
+        return true;
+    }
+
+    
     cout << "GameServer response: "
          << response
          << "\n";
 
-    
+
     size_t firstSeparator =
         response.find('|');
 
@@ -187,11 +196,11 @@ bool Socket::receiveGameServerMessage() {
     int sessionId =
         stoi(response.substr(0, firstSeparator));
 
-    
+
     Session session =
         sessionManager.getSession(sessionId);
 
-   
+
     string stateMessage =
         response.substr(firstSeparator + 1);
 
@@ -213,7 +222,7 @@ bool Socket::receiveGameServerMessage() {
         return true;
     }
 
-    
+
     string remaining =
         stateMessage.substr(secondSeparator + 1);
 
@@ -232,7 +241,7 @@ bool Socket::receiveGameServerMessage() {
     string y =
         remaining.substr(thirdSeparator + 1);
 
-    
+
     string clientResponse =
         playerId + "|STATE|" + y;
 
@@ -282,7 +291,7 @@ void Socket::runEventLoop() {
 
     struct kevent changeList[2];
 
-    // Watch UDP socket
+    
     EV_SET(
         &changeList[0],
         fd,
@@ -293,7 +302,7 @@ void Socket::runEventLoop() {
         nullptr
     );
 
-    // Watch GameServer Unix socket
+   
     EV_SET(
         &changeList[1],
         gameServerFd,

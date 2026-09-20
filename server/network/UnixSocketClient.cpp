@@ -6,6 +6,7 @@
 
 #include <cstring>
 #include <iostream>
+#include <fcntl.h>
 
 bool UnixSocketClient::connectToServer(const std::string& path) {
 
@@ -36,6 +37,23 @@ bool UnixSocketClient::connectToServer(const std::string& path) {
         return false;
     }
 
+    
+    int flags = fcntl(fd, F_GETFL, 0);
+
+    if (flags < 0) {
+        std::cerr << "Failed to get socket flags\n";
+        close(fd);
+        fd = -1;
+        return false;
+    }
+
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+        std::cerr << "Failed to make Unix socket non-blocking\n";
+        close(fd);
+        fd = -1;
+        return false;
+    }
+
     std::cout << "Connected to Game Server\n";
     return true;
 }
@@ -56,17 +74,47 @@ bool UnixSocketClient::sendMessage(const std::string& message) {
     return bytesSent == static_cast<ssize_t>(message.size());
 }
 
-bool UnixSocketClient::receiveMessage(std::string& message) {
+ReceiveResult UnixSocketClient::receiveMessage(
+    std::string& message
+) {
+    while (true) {
 
-    char buffer[1024];
+        size_t delimiter =
+            receiveBuffer.find('\n');
 
-    ssize_t bytesRead = recv(fd, buffer, sizeof(buffer), 0);
+        if (delimiter != std::string::npos) {
 
-    if (bytesRead <= 0) {
-        return false;
+            message =
+                receiveBuffer.substr(0, delimiter);
+
+            receiveBuffer.erase(
+                0,
+                delimiter + 1
+            );
+
+            return ReceiveResult::MESSAGE;
+        }
+
+        char buffer[1024];
+
+        ssize_t bytesRead =
+            recv(fd, buffer, sizeof(buffer), 0);
+
+        if (bytesRead > 0) {
+            receiveBuffer.append(buffer, bytesRead);
+            continue;
+        }
+
+        if (bytesRead == 0) {
+            return ReceiveResult::CLOSED;
+        }
+
+        if (errno == EAGAIN ||
+            errno == EWOULDBLOCK) {
+
+            return ReceiveResult::NO_DATA;
+        }
+
+        return ReceiveResult::CLOSED;
     }
-
-    message.assign(buffer, bytesRead);
-
-    return true;
 }
