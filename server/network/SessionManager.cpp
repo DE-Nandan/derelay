@@ -15,7 +15,7 @@ int SessionManager::createSession(const std::string& ip, int port) {
     return sessionId;
 }
 
-int SessionManager::getPlayerId(const std::string& ip, int port) {
+int SessionManager::getSessionId(const std::string& ip, int port) {
 
     auto it = sessionLookup.find(ip+":"+std::to_string(port));
 
@@ -45,6 +45,37 @@ uint32_t SessionManager::getNextSequenceNumber(int sessionId) {
     }
 
     return it->second.nextSequenceNumber++;
+}
+
+bool SessionManager::hasProcessedSequence(
+    int sessionId,
+    uint32_t sequenceNumber
+) {
+    auto it = sessions.find(sessionId);
+
+    if (it == sessions.end()) {
+        return false;
+    }
+
+    return it->second.processedSequences.count(
+        sequenceNumber
+    ) > 0;
+}
+
+
+void SessionManager::markSequenceProcessed(
+    int sessionId,
+    uint32_t sequenceNumber
+) {
+    auto it = sessions.find(sessionId);
+
+    if (it == sessions.end()) {
+        return;
+    }
+
+    it->second.processedSequences.insert(
+        sequenceNumber
+    );
 }
 
 

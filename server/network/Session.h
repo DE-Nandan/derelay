@@ -2,6 +2,7 @@
 
 #include <string>
 #include <cstdint>
+#include <unordered_set>
 
 struct Session {
     int playerId;
@@ -10,4 +11,5 @@ struct Session {
     uint32_t nextSequenceNumber = 1;
 
     uint32_t getNextSequenceNumber(int sessionId);
+    std::unordered_set<uint32_t> processedSequences;
 };

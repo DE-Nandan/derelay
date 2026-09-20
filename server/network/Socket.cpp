@@ -56,6 +56,7 @@ bool Socket::connectToGameServer() {
     return gameServer.connectToServer("/tmp/derelay.sock");
 }
 
+static bool dropFirstAck = true;
 
 void Socket::receiveUdpPacket() {
 
@@ -81,32 +82,103 @@ void Socket::receiveUdpPacket() {
     cout << "Received " << bytesReceived << " bytes\n";
     cout.flush();
 
-   string message(buffer, bytesReceived);
+    string message(buffer, bytesReceived);
 
-   Packet packet = deserializePacket(message);
+    Packet packet = deserializePacket(message);
 
-   cout << "Received packet\n";
-   cout << "From : "
-              << inet_ntoa(clientAddress.sin_addr)
-              << ":"
-              << ntohs(clientAddress.sin_port)
-              << "\n";
-   cout.flush();
+    cout << "Received packet\n";
 
-    // cout << "Data : " << message << "\n";
+    cout << "From : "
+         << inet_ntoa(clientAddress.sin_addr)
+         << ":"
+         << ntohs(clientAddress.sin_port)
+         << "\n";
+
+    cout.flush();
 
     std::string ip = inet_ntoa(clientAddress.sin_addr);
     int port = ntohs(clientAddress.sin_port);
 
+
+    int sessionId =
+        sessionManager.getSessionId(ip, port);
+
+    if (packet.type == PacketType::JOIN &&
+        sessionId == -1) {
+
+        sessionId =
+            sessionManager.createSession(ip, port);
+
+        std::cout
+            << "Session created: "
+            << sessionId
+            << " from "
+            << ip
+            << ":"
+            << port
+            << "\n";
+    }
+
+
+    if (packet.deliveryType == DeliveryType::RELIABLE &&
+        sessionId != -1) {
+        
+       
+        if (sessionManager.hasProcessedSequence(
+                sessionId,
+                packet.sequenceNumber)) {
+
+            cout
+                << "Duplicate reliable packet: "
+                << "session=" << sessionId
+                << " seq=" << packet.sequenceNumber
+                << "\n";
+
+
+            Packet ackPacket;
+
+            ackPacket.type = PacketType::ACK;
+
+            ackPacket.payload =
+                "ACK|" +
+                std::to_string(packet.sequenceNumber);
+
+            ackPacket.deliveryType =
+                DeliveryType::UNRELIABLE;
+
+            ackPacket.sequenceNumber = 0;
+
+            std::string ackData =
+                serializePacket(ackPacket);
+
+            sendto(
+                fd,
+                ackData.c_str(),
+                ackData.size(),
+                0,
+                reinterpret_cast<sockaddr*>(&clientAddress),
+                clientLength
+            );
+
+            cout
+                << "Re-sent ACK for sequence "
+                << packet.sequenceNumber
+                << "\n";
+
+            return;
+        }
+
+        sessionManager.markSequenceProcessed(
+            sessionId,
+            packet.sequenceNumber
+        );
+    }
+
     switch (packet.type) {
 
     case PacketType::JOIN: {
-        std::cout << "Packet : JOIN\n";
-        
-        int sessionId = sessionManager.createSession(ip, port);
 
-        std::cout << "Session created: " << sessionId
-                << " from " << ip << ":" << port << "\n";
+        std::cout << "Packet : JOIN\n";
 
         gameServer.sendMessage(
             std::to_string(sessionId) + "|JOIN"
@@ -114,14 +186,19 @@ void Socket::receiveUdpPacket() {
 
         break;
     }
-    case PacketType::MOVE_UP:{
+
+    case PacketType::MOVE_UP: {
+
         std::cout << "Packet : MOVE_UP\n";
-        int sessionId = sessionManager.getPlayerId(ip,port);
+
         if (sessionId == -1) {
-        cout << "Unknown session\n";
+            cout << "Unknown session\n";
             break;
         }
-        std::cout<<sessionId<<" "<<" will move up";
+
+        std::cout
+            << sessionId
+            << " will move up";
 
         gameServer.sendMessage(
             std::to_string(sessionId) + "|MOVE_UP"
@@ -130,35 +207,76 @@ void Socket::receiveUdpPacket() {
         break;
     }
 
-    case PacketType::MOVE_DOWN:{
+    case PacketType::MOVE_DOWN: {
+
         std::cout << "Packet : MOVE_DOWN\n";
-        int sessionId = sessionManager.getPlayerId(ip,port);
+
         if (sessionId == -1) {
-        cout << "Unknown session\n";
+            cout << "Unknown session\n";
             break;
         }
-        std::cout<<sessionId<<" "<<" will move down";
+
+        std::cout
+            << sessionId
+            << " will move down";
 
         gameServer.sendMessage(
             std::to_string(sessionId) + "|MOVE_DOWN"
         );
 
-
         break;
     }
 
-    case PacketType::PING:{
+    case PacketType::PING: {
+
         std::cout << "Packet : PING\n";
+
         break;
     }
+
     default:
+
         std::cout << "Packet : UNKNOWN\n";
-}
+    }
+
+
+    if (packet.deliveryType == DeliveryType::RELIABLE &&
+        sessionId != -1) {
+
+        Packet ackPacket;
+
+        ackPacket.type = PacketType::ACK;
+
+        ackPacket.payload =
+            "ACK|" +
+            std::to_string(packet.sequenceNumber);
+
+        ackPacket.deliveryType =
+            DeliveryType::UNRELIABLE;
+
+        ackPacket.sequenceNumber = 0;
+
+        std::string ackData =
+            serializePacket(ackPacket);
+
+        sendto(
+            fd,
+            ackData.c_str(),
+            ackData.size(),
+            0,
+            reinterpret_cast<sockaddr*>(&clientAddress),
+            clientLength
+        );
+
+        std::cout
+            << "Sent ACK for sequence "
+            << packet.sequenceNumber
+            << "\n";
+    }
 
     cout << "Bytes: " << bytesReceived << "\n";
-
-
 }
+  
 
 
 bool Socket::receiveGameServerMessage() {
