@@ -9,11 +9,6 @@
 *.a
 *.so
 client/derelay_client
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
-
 # Local IDE and OS files
 .idea/workspace.xml
 .DS_Store

@@ -15,4 +15,4 @@ if [ ${#SRC_FILES[@]} -eq 0 ]; then
   exit 1
 fi
 
-/usr/bin/clang++ -std=c++17 -g "${SRC_FILES[@]}" -o "$OUT"
+clang++ -std=c++17 -g "${SRC_FILES[@]}" -o "$OUT"

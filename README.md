@@ -204,12 +204,6 @@ server/
 
         UnixSocketClient.h / UnixSocketClient.cpp
             Unix Domain Socket communication with the Java server
-
-docs/
-    Design notes and project documentation
-
-tools/
-    Development utilities
 ```
 
 ## Building
@@ -218,8 +212,7 @@ tools/
 
 * macOS or Linux
 * C++17 compiler
-* CMake 3.20+
-* `clang++` for the shell-based build
+* `clang++`
 
 ### Shell Build
 
@@ -233,19 +226,6 @@ The build produces:
 
 ```text
 server/main.out
-```
-
-### CMake Build
-
-```bash
-cmake -S . -B build
-cmake --build build
-```
-
-This builds the configured DeRelay targets under:
-
-```text
-build/
 ```
 
 ## Running the Networking Engine
@@ -334,6 +314,6 @@ The longer-term goal is a networking layer that a Java application can plug into
 
 ## Git Hygiene
 
-Generated binaries, debug symbols, object files, CMake output, and local IDE state should not be committed.
+Generated binaries, debug symbols, object files, and local IDE state should not be committed.
 
 The root `README.md`, source code, protocol definitions, documentation, and project configuration should remain tracked.

@@ -16,4 +16,6 @@ private:
     int fd = -1;
     SessionManager sessionManager;
     UnixSocketClient gameServer;
+    void runKqueueEventLoop();
+    void runEpollEventLoop();
 };

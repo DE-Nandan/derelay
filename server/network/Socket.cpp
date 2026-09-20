@@ -8,9 +8,16 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <string>
-#include <sys/event.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+#ifdef __APPLE__
+#include <sys/event.h>
+#elif defined(__linux__)
+#include <sys/epoll.h>
+#else
+#error "Unsupported platform"
+#endif
 
 #include "../../protocol/Packet.h"
 #include "../../protocol/DeliveryPolicy.h"
@@ -409,7 +416,9 @@ bool Socket::receiveGameServerMessage() {
     return true;
 }
 
-void Socket::runEventLoop() {
+#ifdef __APPLE__
+
+void Socket::runKqueueEventLoop() {
 
     int kqueueFd = kqueue();
 
@@ -422,11 +431,11 @@ void Socket::runEventLoop() {
         return;
     }
 
-    int gameServerFd = gameServer.getFd();
+    int gameServerFd =
+        gameServer.getFd();
 
     struct kevent changeList[2];
 
-    
     EV_SET(
         &changeList[0],
         fd,
@@ -434,10 +443,8 @@ void Socket::runEventLoop() {
         EV_ADD,
         0,
         0,
-        nullptr
-    );
+        nullptr);
 
-   
     EV_SET(
         &changeList[1],
         gameServerFd,
@@ -445,8 +452,7 @@ void Socket::runEventLoop() {
         EV_ADD,
         0,
         0,
-        nullptr
-    );
+        nullptr);
 
     if (kevent(
             kqueueFd,
@@ -454,31 +460,31 @@ void Socket::runEventLoop() {
             2,
             nullptr,
             0,
-            nullptr
-        ) < 0) {
+            nullptr) < 0) {
 
         cerr << "Failed to register sockets with kqueue: "
              << strerror(errno)
              << "\n";
 
         close(kqueueFd);
+
         return;
     }
 
-    cout << "DeRelay event loop started\n";
+    cout << "DeRelay kqueue event loop started\n";
 
     struct kevent events[10];
 
     while (true) {
 
-        int readyCount = kevent(
-            kqueueFd,
-            nullptr,
-            0,
-            events,
-            10,
-            nullptr
-        );
+        int readyCount =
+            kevent(
+                kqueueFd,
+                nullptr,
+                0,
+                events,
+                10,
+                nullptr);
 
         if (readyCount < 0) {
 
@@ -492,19 +498,22 @@ void Socket::runEventLoop() {
             break;
         }
 
-        for (int i = 0; i < readyCount; i++) {
+        for (int i = 0;
+             i < readyCount;
+             i++) {
 
             int readyFd =
-                static_cast<int>(events[i].ident);
+                static_cast<int>(
+                    events[i].ident);
 
             if (readyFd == fd) {
 
                 receiveUdpPacket();
-            }
 
-            else if (readyFd == gameServerFd) {
+            } else if (readyFd == gameServerFd) {
 
-                 bool success = receiveGameServerMessage();
+                bool success =
+                    receiveGameServerMessage();
 
                 if (!success) {
 
@@ -517,8 +526,7 @@ void Socket::runEventLoop() {
                         EV_DELETE,
                         0,
                         0,
-                        nullptr
-                    );
+                        nullptr);
 
                     kevent(
                         kqueueFd,
@@ -526,10 +534,10 @@ void Socket::runEventLoop() {
                         1,
                         nullptr,
                         0,
-                        nullptr
-                    );
+                        nullptr);
 
-                    cout << "GameServer socket removed from kqueue\n";
+                    cout
+                        << "GameServer socket removed from kqueue\n";
                 }
             }
         }
@@ -538,140 +546,152 @@ void Socket::runEventLoop() {
     close(kqueueFd);
 }
 
+#endif
 
 
+/*
+ * Linux event loop
+ */
+#ifdef __linux__
 
-// void Socket::runEventLoop() {
+void Socket::runEpollEventLoop() {
 
-//     int epollFd = epoll_create1(0);
+    int epollFd =
+        epoll_create1(0);
 
-//     if (epollFd < 0) {
+    if (epollFd < 0) {
 
-//         cerr << "Failed to create epoll: "
-//              << strerror(errno)
-//              << "\n";
+        cerr << "Failed to create epoll: "
+             << strerror(errno)
+             << "\n";
 
-//         return;
-//     }
+        return;
+    }
 
+    /*
+     * Add UDP socket.
+     */
+    epoll_event udpEvent{};
 
-//     /*
-//      * Add UDP socket.
-//      */
+    udpEvent.events = EPOLLIN;
+    udpEvent.data.fd = fd;
 
-//     epoll_event udpEvent{};
+    if (epoll_ctl(
+            epollFd,
+            EPOLL_CTL_ADD,
+            fd,
+            &udpEvent) < 0) {
 
-//     udpEvent.events = EPOLLIN;
-//     udpEvent.data.fd = fd;
+        cerr << "Failed to add UDP socket to epoll: "
+             << strerror(errno)
+             << "\n";
 
-//     if (epoll_ctl(
-//             epollFd,
-//             EPOLL_CTL_ADD,
-//             fd,
-//             &udpEvent) < 0) {
+        close(epollFd);
 
-//         cerr << "Failed to add UDP socket to epoll: "
-//              << strerror(errno)
-//              << "\n";
+        return;
+    }
 
-//         close(epollFd);
-//         return;
-//     }
+    /*
+     * Add Unix socket connected to Java.
+     */
+    int gameServerFd =
+        gameServer.getFd();
 
+    epoll_event gameServerEvent{};
 
-//     /*
-//      * Add Unix socket connected to Java.
-//      */
+    gameServerEvent.events = EPOLLIN;
+    gameServerEvent.data.fd =
+        gameServerFd;
 
-//     int gameServerFd =
-//         gameServer.getFd();
+    if (epoll_ctl(
+            epollFd,
+            EPOLL_CTL_ADD,
+            gameServerFd,
+            &gameServerEvent) < 0) {
 
-//     epoll_event gameServerEvent{};
+        cerr << "Failed to add GameServer socket to epoll: "
+             << strerror(errno)
+             << "\n";
 
-//     gameServerEvent.events = EPOLLIN;
-//     gameServerEvent.data.fd = gameServerFd;
+        close(epollFd);
 
-//     if (epoll_ctl(
-//             epollFd,
-//             EPOLL_CTL_ADD,
-//             gameServerFd,
-//             &gameServerEvent) < 0) {
+        return;
+    }
 
-//         cerr << "Failed to add GameServer socket to epoll: "
-//              << strerror(errno)
-//              << "\n";
+    cout << "DeRelay epoll event loop started\n";
 
-//         close(epollFd);
-//         return;
-//     }
+    epoll_event events[10];
 
+    while (true) {
 
-//     cout << "DeRelay event loop started\n";
+        int readyCount =
+            epoll_wait(
+                epollFd,
+                events,
+                10,
+                -1);
 
+        if (readyCount < 0) {
 
-//     epoll_event events[10];
+            if (errno == EINTR)
+                continue;
 
+            cerr << "epoll_wait failed: "
+                 << strerror(errno)
+                 << "\n";
 
-//     while (true) {
+            break;
+        }
 
-//         int readyCount =
-//             epoll_wait(
-//                 epollFd,
-//                 events,
-//                 10,
-//                 -1
-//             );
+        for (int i = 0;
+             i < readyCount;
+             i++) {
 
+            int readyFd =
+                events[i].data.fd;
 
-//         if (readyCount < 0) {
+            if (readyFd == fd) {
 
-//             if (errno == EINTR)
-//                 continue;
+                receiveUdpPacket();
 
-//             cerr << "epoll_wait failed: "
-//                  << strerror(errno)
-//                  << "\n";
+            } else if (readyFd == gameServerFd) {
 
-//             break;
-//         }
+                bool success =
+                    receiveGameServerMessage();
 
+                if (!success) {
 
-//         /*
-//          * Process everything that became ready.
-//          */
+                    epoll_ctl(
+                        epollFd,
+                        EPOLL_CTL_DEL,
+                        gameServerFd,
+                        nullptr);
 
-//         for (int i = 0; i < readyCount; i++) {
+                    cout
+                        << "GameServer socket removed from epoll\n";
+                }
+            }
+        }
+    }
 
-//             int readyFd =
-//                 events[i].data.fd;
+    close(epollFd);
+}
 
-
-//             /*
-//              * UDP packet available.
-//              */
-
-//             if (readyFd == fd) {
-
-//                 receiveUdpPacket();
-//             }
-
-
-//             /*
-//              * Java/GameServer response available.
-//              */
-
-//             else if (readyFd == gameServerFd) {
-
-//                 receiveGameServerMessage();
-//             }
-//         }
-//     }
-
-
-//     close(epollFd);
-// }
-
+#endif
 
 
+/*
+ * Platform-independent entry point.
+ */
+void Socket::runEventLoop() {
 
+#ifdef __APPLE__
 
+    runKqueueEventLoop();
+
+#elif defined(__linux__)
+
+    runEpollEventLoop();
+
+#endif
+}
